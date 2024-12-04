@@ -1,4 +1,4 @@
 # thermoPro
 ThermoPro: Advanced Insulation Analysis &amp; Energy Optimization Tool 
 
-Description: 
+Description: This tool provides a 
