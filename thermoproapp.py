@@ -113,6 +113,56 @@ def user_mode():
     else:
         st.sidebar.warning("No user manual is available for download.")
 
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+# Define chatbot response rules
+def chatbot_response(user_input):
+    responses = {
+        "hello": "Hi there! How can I assist you today?",
+        "help": "Sure, I can help you with material properties, heat flux calculations, or simulation settings.",
+        "materials": "You can upload material configurations as JSON, Excel, or CSV files in the Material Group Setup section.",
+        "temperature": "You can adjust interior and exterior temperature settings in the sidebar under Simulation Parameters.",
+        "bye": "Goodbye! Feel free to come back anytime.",
+    }
+    return responses.get(user_input.lower(), "I'm sorry, I didn't understand that. Can you rephrase?")
+
+# Add chatbot interface to the sidebar
+st.sidebar.markdown(
+    """
+    <style>
+    .chat-section {
+        background-color: #E8F8F5;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+    }
+    </style>
+    <div class="chat-section">
+        <h3 style="text-align: center;">Chat with ThermoBot 🤖</h3>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Chat input box
+user_input = st.sidebar.text_input("Type your message here:", key="chat_input")
+
+# Process user input and generate chatbot response
+if user_input:
+    # Add user message to chat history
+    st.session_state.chat_history.append(f"You: {user_input}")
+
+    # Generate chatbot response
+    bot_response = chatbot_response(user_input)
+    st.session_state.chat_history.append(f"ThermoBot: {bot_response}")
+
+    # Clear input safely
+    if 'chat_input' in st.session_state:
+        st.session_state.chat_input = ""
+    else:
+        st.session_state.chat_input = ""  # Initialize if not exists
+
 # Helper Functions
 def create_material_group():
     """Allow the user to dynamically create or modify material groups for comparison."""
@@ -584,113 +634,137 @@ if not simulation_df.empty:
         f"❌ **The Least Effective Material**: {least_effective['Material']} with the highest heat flux of {least_effective['Heat Flux (W/m²)']:.2f} W/m²."
     )
 
-# Display Heat Flux and Layer Reactions
-st.subheader("Each Layer Reactions")
+# Main App
+st.markdown("## Temperature Settings")
+st.write("Adjust the temperatures as per your requirements:")
 
-# Allow user to select material and adjust internal temperature
-selected_material_for_analysis = st.selectbox(
-    "Select a material to view its heat flux behavior:",
-    simulation_df["Material"].unique(),
+# Fix Temperature Option
+fixed_temp_option = st.radio(
+    "Fix Temperature At:",
+    ["Interior", "Exterior"],
+    index=0,
+    key="fix_temp_radio"
 )
 
-adjusted_temp = st.number_input(
-    "Adjust the internal temperature (K):",
-    min_value=float(200.0),  # Cast to float
-    max_value=float(fixed_temp - 1),  # Cast to float
-    value=float(actual_temp_values[0]),  # Cast to float
-    step=0.1  # Already a float
-)
+# Fixed Temperature Slider
+if fixed_temp_option == "Interior":
+    fixed_temp = st.slider(
+        "Fixed Interior Temperature (K):",
+        min_value=200.0,
+        max_value=400.0,
+        value=300.0,
+        step=1.0,
+        key="fixed_interior_temp"
+    )
+else:
+    fixed_temp = st.slider(
+        "Fixed Exterior Temperature (K):",
+        min_value=200.0,
+        max_value=400.0,
+        value=300.0,
+        step=1.0,
+        key="fixed_exterior_temp"
+    )
 
-# Filter data based on user selection
-analysis_df = simulation_df[
-    (simulation_df["Material"] == selected_material_for_analysis)
-    & (simulation_df[temp_column_name] == adjusted_temp)
+# Display Fixed Temperature
+st.markdown("### Temperature Summary")
+st.write(f"**Fixed Temperature ({fixed_temp_option}):** {fixed_temp} K")
+
+# Section: Layer-Wise Temperature Drop Analysis Across a Range
+st.subheader("Layer-wise Temperature Drop Analysis Across a Range")
+
+# Select the material for analysis
+materials = [
+    {"name": "Hydrophobic/Non-Organic", "layers": [
+        {"Layer": "Rockwool Batting", "Thickness (m)": 0.1, "Conductivity (W/m·K)": 0.04},
+        {"Layer": "XPS", "Thickness (m)": 0.05, "Conductivity (W/m·K)": 0.03},
+        {"Layer": "Closed-cell Spray Foam", "Thickness (m)": 0.08, "Conductivity (W/m·K)": 0.025}
+    ]},
+    {"name": "Organic Material", "layers": [
+        {"Layer": "Wood Fiber", "Thickness (m)": 0.1, "Conductivity (W/m·K)": 0.12},
+        {"Layer": "Cork", "Thickness (m)": 0.05, "Conductivity (W/m·K)": 0.045},
+        {"Layer": "Straw", "Thickness (m)": 0.08, "Conductivity (W/m·K)": 0.07}
+    ]}
 ]
 
-if not analysis_df.empty:
-    index = analysis_df.index[0]
-    material = next(
-        (m for m in material_group if m["name"] == selected_material_for_analysis), None
-    )
-    if material:
-        Delta_T_total = abs(fixed_temp - adjusted_temp)
-        cumulative_temp_drop = 0
-        tolerance = 0.01  # Tolerance for cumulative drop
+selected_material = st.selectbox(
+    "Select a material to view layer-wise temperature drop across a range:",
+    [material["name"] for material in materials]
+)
+
+# Adjust temperature range for analysis
+temperature_range = st.slider(
+    "Select the temperature range for analysis (K):",
+    min_value=200,
+    max_value=400,
+    value=(250, 300),
+    step=1,
+    key="layer_range_slider"
+)
+
+# Retrieve the selected material's layers
+material = next((m for m in materials if m["name"] == selected_material), None)
+
+# Perform layer-wise temperature drop analysis across the range
+layer_range_analysis_data = []
+
+if material:
+    for temp in range(temperature_range[0], temperature_range[1] + 1):
+        Delta_T = abs(fixed_temp - temp)  # Calculate temperature difference
         layer_reactions = []
+        cumulative_temp_drop = 0
+        total_RSI = sum([layer["Thickness (m)"] / layer["Conductivity (W/m·K)"] for layer in material["layers"]])
+        heat_flux_per_unit_area = Delta_T / total_RSI  # Consistent heat flux calculation
 
-        st.write(f"**External Temperature (Fixed):** {fixed_temp} K")
-        st.write(f"**Adjusted Internal Temperature:** {adjusted_temp} K")
-        st.write(f"**Total Temperature Drop Across Layers:** {Delta_T_total:.2f} K")
+        for idx, layer in enumerate(material["layers"]):
+            RSI_layer = layer["Thickness (m)"] / layer["Conductivity (W/m·K)"]
+            temp_drop_k = heat_flux_per_unit_area * RSI_layer
+            cumulative_temp_drop += temp_drop_k
 
-# Calculate layer reactions and validate cumulative drop
-st.write("Layer-wise Temperature Drop (in Kelvin):")
+            layer_reactions.append({
+                "S.No": idx + 1,
+                "Layer": layer["Layer"],
+                "Temperature Drop (K)": round(temp_drop_k, 2),
+                "Thermal Resistance (K·m²/W)": round(RSI_layer, 4),
+            })
+        
+        # Append the data for this temperature
+        layer_range_analysis_data.append({
+            "Adjusted Temperature (K)": temp,
+            "Layer-wise Reactions": layer_reactions
+        })
 
-layer_reactions = []  # Initialize list to store layer data
-cumulative_temp_drop = 0  # Initialize cumulative temperature drop
-total_RSI = sum([layer["thickness"] / layer["conductivity"] for layer in material["layers"]])
-heat_flux_per_unit_area = Delta_T_total / total_RSI  # Ensure consistent heat flux calculation
+# Display Results
+if layer_range_analysis_data:
+    st.write(f"**Fixed Temperature:** {fixed_temp} K")
 
-for idx, layer in enumerate(material["layers"]):
-    # Calculate layer-specific thermal resistance and temperature drop
-    RSI_layer = layer["thickness"] / layer["conductivity"]
-    temp_drop_k = heat_flux_per_unit_area * RSI_layer
-    cumulative_temp_drop += temp_drop_k
-
-    # Append results for the current layer
-    layer_reactions.append({
-        "S.No": idx + 1,
-        "Layer": layer["name"],
-        "Temperature Drop (K)": temp_drop_k,
-        "Thermal Resistance (K·m²/W)": RSI_layer,
-    })
-
-    # Display layer details
-    st.write(
-        f"{layer['name']}: {temp_drop_k:.2f} K "
-        f"(Thermal Resistance: {RSI_layer:.4f} K·m²/W)"
+    # Dropdown to select a specific adjusted temperature
+    selected_temp = st.selectbox(
+        "Select an Adjusted Temperature to View Details:",
+        [data["Adjusted Temperature (K)"] for data in layer_range_analysis_data],
+        key="adjusted_temp_dropdown"
     )
 
-# Tabular display of results
-reaction_df = pd.DataFrame(layer_reactions)
-st.table(reaction_df)
+    # Display the table for the selected temperature
+    selected_data = next(data for data in layer_range_analysis_data if data["Adjusted Temperature (K)"] == selected_temp)
+    st.markdown(f"### Adjusted Temperature: {selected_data['Adjusted Temperature (K)']} K")
 
-# Check cumulative temperature drop
-if abs(cumulative_temp_drop - Delta_T_total) < tolerance:
-    st.success(f"Cumulative Temperature Drop matches the specified ΔT ({Delta_T_total:.2f} K).")
-else:
-    difference = abs(cumulative_temp_drop - Delta_T_total)
-    st.warning(
-        f"Cumulative Temperature Drop does not match ΔT. Difference: {difference:.2f} K."
-    )
-    st.write("Suggested Adjustments:")
-    st.write("- Increase layer thickness for better insulation.")
-    st.write("- Use materials with lower thermal conductivity for more resistance.")
-    st.write("- Ensure accurate input values for each layer.")
+    # Add Delta T Column in the DataFrame
+    layer_reactions_with_delta = []
+    for reaction in selected_data["Layer-wise Reactions"]:
+        reaction["Delta T (K)"] = round(fixed_temp - selected_temp, 2)  # Compute Delta T for each row
+        layer_reactions_with_delta.append(reaction)
 
-# Add download option for layer reactions
-csv_data = reaction_df.to_csv(index=False)
-st.download_button(
-    label="Download Layer Reactions as CSV",
-    data=csv_data,
-    file_name="layer_reactions.csv",
-    mime="text/csv",
-)
-
-# Download Results
-csv = simulation_df.to_csv(index=False)
-st.download_button(
-    label="Download Results as CSV",
-    data=csv,
-    file_name="thermal_analysis_results.csv",
-    mime="text/csv",
-)
+    # Create DataFrame for Display
+    layer_reactions_df = pd.DataFrame(layer_reactions_with_delta)
+    st.table(layer_reactions_df)
 
 # Footer Section
 st.sidebar.markdown(
     """
     <div style="text-align:center; background-color:#E8F8F5; padding:10px; border-radius:10px; margin-top:20px;">
         <b>Developed by Jayaprakash Chandran</b><br>
-        <span style="font-size:12px; color:#117864;">© 2024 | All Rights Reserved</span>
+        <span style="font-size:12px; color:#117864;">© 2025 | All Rights Reserved</span>
     </div>
     """,
     unsafe_allow_html=True
