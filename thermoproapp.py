@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import pandas as pd
 from fpdf import FPDF
+from fpdf.enums import XPos, YPos
 import io
 import spacy
 import plotly.express as px
@@ -9,8 +10,6 @@ import plotly.graph_objects as go # Added for 3D Mesh
 import json
 import plotly.io as pio
 import traceback # For more detailed error logging if needed
-from spacy.cli import download
-from spacy.util import is_package
 
 
 
@@ -118,77 +117,44 @@ def generate_user_manual_pdf():
     pdf = FPDF()
     pdf.add_page()
 
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "ThermoPro User Manual", 0, 1, "C")
-    pdf.ln(10)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "1. Introduction", 0, 1)
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "ThermoPro is a tool for analyzing heat transfer through layered materials, comparing different insulation configurations, and optimizing energy performance.", border=0, align="J")
+    pdf.set_font("helvetica", "B", 16)
+    pdf.cell(0, 10, "ThermoPro User Manual", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(5)
 
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "2. Material Group Setup", 0, 1)
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "Use the 'Material Group Setup' section in the sidebar to define your materials. You can add multiple materials, each with multiple layers. For each layer, specify its name, thickness (in meters), and thermal conductivity (in W/m·K). You can also load existing configurations from JSON, Excel (.xlsx), or CSV files.", border=0, align="J")
-    pdf.ln(5)
+    sections = [
+        ("1. Introduction", "ThermoPro is a tool for analyzing heat transfer through layered materials, comparing different insulation configurations, and optimizing energy performance."),
+        ("2. Material Group Setup", "Use the 'Material Group Setup' section in the sidebar to define your materials. You can add multiple materials, each with multiple layers. For each layer, specify its name, thickness (in meters), and thermal conductivity (in W/m·K). You can also load existing configurations from JSON, Excel (.xlsx), or CSV files."),
+        ("3. Material Comparison Selection", "Select one material as the 'Baseline Material' for comparison. Choose other materials from the 'Select Materials to Compare' list. Only the selected materials will be included in the simulation results and graphs."),
+        ("4. Simulation Parameters", "Select your preferred Temperature Unit (K, °C, °F). Define the temperature conditions by fixing either the interior or exterior temperature and setting a range for the other temperature. Specify the Wall Area (in m²), Energy Cost ($/kWh), and annual Operating Hours. You can also choose to use specific Convective Heat Transfer Coefficients (h-values) for more advanced boundary conditions."),
+        ("5. Simulation Results", "The results section displays a graph comparing heat flux for the selected materials across the temperature range. A detailed table shows calculated values (Heat Flux, Total Flux, Thermal Resistance, Annual Cost) for each material at each temperature point. Validation messages will alert you if temperature drop calculations across layers do not sum up correctly."),
+        ("6. Detailed Layer Analysis", "In this section, you can select a specific material and temperature point from your simulation results to view the temperature drop and thermal resistance for each individual layer within that material stack. A bar chart visualizes the temperature drop per layer."),
+        ("7. 3D Material Visualization", "Visualize the layered structure of a selected material in 3D. This section provides a simple 3D representation of the material stack, showing each layer's thickness."),
+        ("8. Reports", "Download comprehensive simulation results in Excel (.xlsx) or PDF format. The PDF report includes the main results table and the heat flux comparison graph."),
+        ("9. Chatbot", "Use the 'Chat with ThermoBot' in the sidebar for quick answers to common questions about the app and heat transfer concepts.")
+    ]
 
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "3. Material Comparison Selection", 0, 1)
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "Select one material as the 'Baseline Material' for comparison. Choose other materials from the 'Select Materials to Compare' list. Only the selected materials will be included in the simulation results and graphs.", border=0, align="J")
-    pdf.ln(5)
+    pdf.set_font("helvetica", "", 12)
+    for title, body in sections:
+        pdf.set_font("helvetica", "B", 12)
+        pdf.cell(0, 10, title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("helvetica", "", 12)
+        pdf.multi_cell(0, 10, body, border=0, align="J")
+        pdf.ln(2)
 
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "4. Simulation Parameters", 0, 1)
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "Select your preferred Temperature Unit (K, °C, °F). Define the temperature conditions by fixing either the interior or exterior temperature and setting a range for the other temperature. Specify the Wall Area (in m²), Energy Cost ($/kWh), and annual Operating Hours. You can also choose to use specific Convective Heat Transfer Coefficients (h-values) for more advanced boundary conditions.", border=0, align="J")
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "5. Simulation Results", 0, 1)
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "The results section displays a graph comparing heat flux for the selected materials across the temperature range. A detailed table shows calculated values (Heat Flux, Total Flux, Thermal Resistance, Annual Cost) for each material at each temperature point. Validation messages will alert you if temperature drop calculations across layers do not sum up correctly.", border=0, align="J")
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "6. Detailed Layer Analysis", 0, 1)
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "In this section, you can select a specific material and temperature point from your simulation results to view the temperature drop and thermal resistance for each individual layer within that material stack. A bar chart visualizes the temperature drop per layer.", border=0, align="J")
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "7. 3D Material Visualization", 0, 1) # New Section
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "Visualize the layered structure of a selected material in 3D. This section provides a simple 3D representation of the material stack, showing each layer's thickness.", border=0, align="J")
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "8. Reports", 0, 1) # Old 7 is now 8
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "Download comprehensive simulation results in Excel (.xlsx) or PDF format. The PDF report includes the main results table and the heat flux comparison graph.", border=0, align="J")
-    pdf.ln(5)
-
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(0, 10, "9. Chatbot", 0, 1) # Old 8 is now 9
-    pdf.set_font("Arial", "", 12)
-    pdf.multi_cell(0, 10, "Use the 'Chat with ThermoBot' in the sidebar for quick answers to common questions about the app and heat transfer concepts.", border=0, align="J")
-    pdf.ln(5)
-
+    # Save to buffer
     pdf_buffer = io.BytesIO()
-    pdf.output(pdf_buffer) 
-    pdf_buffer.seek(0) 
+    pdf.output(pdf_buffer)
+    pdf_buffer.seek(0)
     return pdf_buffer.getvalue()
- 
-# Add Download Manual button (at top level, called when script runs)
+
+# Download button in Streamlit
 manual_pdf_buffer = generate_user_manual_pdf()
 st.sidebar.download_button(
     label="Download User Manual",
     data=manual_pdf_buffer,
-    file_name=manual_file_name,
+    file_name="ThermoPro_User_Manual.pdf",
     mime="application/pdf",
-    key="user_download_main" # Changed key
+    key="user_download_main"
 )
 
 
