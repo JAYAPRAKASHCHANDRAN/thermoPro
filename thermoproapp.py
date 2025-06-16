@@ -167,16 +167,11 @@ def generate_user_manual_pdf():
     pdf.multi_cell(0, 10, "Use the 'Chat with ThermoBot' in the sidebar for quick answers to common questions about the app and heat transfer concepts.", border=0, align="J")
     pdf.ln(5)
 
-    try:
-        # Attempt to encode using latin1 first
-        pdf_output = pdf.output(dest='S').encode('latin1')
-    except UnicodeEncodeError:
-        # Fallback or use a different encoding strategy if needed
-        print("Warning: Non-latin1 characters found in User Manual PDF content. Attempting UTF-8 (may require font setup in FPDF2).")
-        # For basic FPDF, this might still fail without proper font handling
-        pdf_output = pdf.output(dest='S').encode('utf-8', errors='replace') # Replace problematic chars
-    return pdf_output
-
+    pdf_buffer = io.BytesIO()
+    pdf.output(pdf_buffer) 
+    pdf_buffer.seek(0) 
+    return pdf_buffer.getvalue()
+ 
 # Add Download Manual button (at top level, called when script runs)
 manual_pdf_buffer = generate_user_manual_pdf()
 st.sidebar.download_button(
@@ -960,8 +955,10 @@ if 'simulation_df_full' in st.session_state and not st.session_state['simulation
         for msg_pdf_val in validation_msgs_param: pdf_obj.multi_cell(0,5,msg_pdf_val,0,"J") # Renamed variable
 
         try:
-            pdf_buffer_out_obj = io.BytesIO(); pdf_buffer_out_obj.write(pdf_obj.output(dest="S").encode("latin1")); pdf_buffer_out_obj.seek(0) # Renamed variable
-            return pdf_buffer_out_obj
+            pdf_buffer = io.BytesIO()
+            pdf_obj.output(pdf_buffer)
+            pdf_buffer.seek(0)
+            return pdf_buffer.getvalue()
         except Exception as e_pdf_output: print(f"PDF Output Error: {e_pdf_output}"); return None # Renamed variable
 
     df_bytes_buffer_dl = io.BytesIO() # Renamed variable

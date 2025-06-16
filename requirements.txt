@@ -1,5 +1,5 @@
 streamlit==1.35.0
 pandas==2.2.2
-fpdf2==2.7.6
+fpdf2
 spacy==3.7.4
 plotly==5.22.0
