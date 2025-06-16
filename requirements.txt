@@ -3,3 +3,7 @@ pandas==2.2.2
 fpdf2
 spacy>=3.0.0
 plotly==5.22.0
+spacy-streamlit
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0.tar.gz
+
+

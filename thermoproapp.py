@@ -12,6 +12,13 @@ import traceback # For more detailed error logging if needed
 from spacy.cli import download
 from spacy.util import is_package
 
+
+
+# Load the pre-installed spaCy model
+nlp = spacy.load("en_core_web_sm")
+
+
+
 # Ensure kaleido is installed for Plotly image export (for PDF report)
 # You might need to run: pip install kaleido
 
@@ -183,18 +190,6 @@ st.sidebar.download_button(
     mime="application/pdf",
     key="user_download_main" # Changed key
 )
-
-
-
-model_name = "en_core_web_sm"
-# --- Chatbot Setup ---
-# Check if spacy model is downloaded, provide instructions if not
-try:
-    nlp = spacy.load(model_name)
-except OSError:
-    if not is_package(model_name):
-        download(model_name, "--user") 
-    nlp = spacy.load(model_name)
 
 
 # Chatbot response function using NLP
