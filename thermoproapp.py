@@ -9,7 +9,7 @@ import plotly.graph_objects as go # Added for 3D Mesh
 import json
 import plotly.io as pio
 import traceback # For more detailed error logging if needed
-import subprocess
+from spacy.cli import download
 
 # Ensure kaleido is installed for Plotly image export (for PDF report)
 # You might need to run: pip install kaleido
@@ -191,7 +191,7 @@ st.sidebar.download_button(
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
+    download("en_core_web_sm")
     st.error("Spacy model 'en_core_web_sm' not found. Please run 'python -m spacy download en_core_web_sm' in your terminal.")
     nlp = spacy.load("en_core_web_sm")
 
