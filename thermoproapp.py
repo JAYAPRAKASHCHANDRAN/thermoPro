@@ -9,6 +9,7 @@ import plotly.graph_objects as go # Added for 3D Mesh
 import json
 import plotly.io as pio
 import traceback # For more detailed error logging if needed
+import subprocess
 
 # Ensure kaleido is installed for Plotly image export (for PDF report)
 # You might need to run: pip install kaleido
@@ -183,13 +184,17 @@ st.sidebar.download_button(
 )
 
 
+
+
 # --- Chatbot Setup ---
 # Check if spacy model is downloaded, provide instructions if not
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"], check=True)
     st.error("Spacy model 'en_core_web_sm' not found. Please run 'python -m spacy download en_core_web_sm' in your terminal.")
-    st.stop() # Stop execution if model is missing
+    nlp = spacy.load("en_core_web_sm")
+
 
 # Chatbot response function using NLP
 def chatbot_response(user_input_bot): # Renamed parameter
